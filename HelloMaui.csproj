@@ -9,6 +9,9 @@
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.1.1" />
+    <!-- Explicit MAUI package reference required for .NET 8+ projects -->
+    <PackageReference Include="Microsoft.Maui.Controls" Version="8.0.3" />
+    <!-- Use a resolved compatible version of CommunityToolkit.Mvvm -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.0" />
   </ItemGroup>
 </Project>
