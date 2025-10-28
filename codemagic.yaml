@@ -31,10 +31,30 @@ workflows:
           ls -R ./publish
       - name: Publish to GitHub Release
         script: |
+          echo "Debug: CM_TAG='${CM_TAG}' CM_BRANCH='${CM_BRANCH}' CM_BUILD_TRIGGER='${CM_BUILD_TRIGGER}'"
+
+          # If CM_TAG is not set, try to detect a tag that points at HEAD (fallback)
           if [ -z "${CM_TAG}" ]; then
-            echo "Not a tag build, skipping GitHub release"
+            echo "CM_TAG is empty, attempting to detect tag via git"
+            git fetch --tags || true
+            TAG=$(git tag --points-at HEAD 2>/dev/null || true)
+            if [ -z "$TAG" ]; then
+              TAG=$(git describe --tags --exact-match 2>/dev/null || true)
+            fi
+            if [ -n "$TAG" ]; then
+              export CM_TAG="$TAG"
+              echo "Detected tag: $CM_TAG"
+            else
+              echo "Not a tag build and no tag detected. Skipping GitHub release"
+              exit 0
+            fi
+          fi
+
+          if [ -z "${GITHUB_TOKEN}" ]; then
+            echo "GITHUB_TOKEN not set in environment. Cannot create release. Skipping."
             exit 0
           fi
+
           echo "${GITHUB_TOKEN}" > token.txt
           gh auth login --with-token < token.txt
           gh release create "${CM_TAG}" \
