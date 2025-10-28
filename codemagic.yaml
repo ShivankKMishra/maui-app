@@ -5,29 +5,27 @@ workflows:
       vars:
         DOTNET_CHANNEL: "8.0"
     scripts:
-      - name: Install .NET SDK
+      - name: Install .NET SDK and MAUI workloads
         script: |
-          echo "Installing .NET $DOTNET_CHANNEL via dotnet-install.sh"
+          echo "Installing .NET $DOTNET_CHANNEL via dotnet-install.sh into $HOME/.dotnet"
           mkdir -p $HOME/.dotnet
-          curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel $DOTNET_CHANNEL
-          export DOTNET_ROOT=$HOME/.dotnet
-          export PATH=$DOTNET_ROOT:$PATH
-          dotnet --info
-      - name: Install MAUI workloads
-        script: |
-          dotnet workload install maui --skip-manifest-update
+          curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel $DOTNET_CHANNEL --install-dir $HOME/.dotnet
+          DOTNET_BIN="$HOME/.dotnet/dotnet"
+          $DOTNET_BIN --info
+          echo "Installing MAUI workloads"
+          $DOTNET_BIN workload install maui --skip-manifest-update
       - name: Ensure Android SDK tools (license acceptance)
         script: |
           # sdkmanager is usually available on macOS images; accept licenses
           yes | sdkmanager --licenses || true
       - name: Restore
         script: |
-          dotnet restore
+          $HOME/.dotnet/dotnet restore
       - name: Build Android Release
         script: |
-          dotnet build ./HelloMaui.csproj -f net8.0-android -c Release -v minimal
+          $HOME/.dotnet/dotnet build ./HelloMaui.csproj -f net8.0-android -c Release -v minimal
       - name: Publish APK
         script: |
-          dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o ./publish
+          $HOME/.dotnet/dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o ./publish
 artifacts:
   - publish/**/*.apk
