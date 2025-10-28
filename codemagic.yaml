@@ -1,31 +1,54 @@
 workflows:
   build-android:
-    name: Build Android (.apk)
+    name: Build Android (.apk) and Publish to GitHub
+    max_build_duration: 60
+    instance_type: mac_mini_m2
     environment:
       vars:
         DOTNET_CHANNEL: "8.0"
+        DOTNET_PATH: "$HOME/.dotnet"
+        DOTNET: "$HOME/.dotnet/dotnet"
     scripts:
       - name: Install .NET SDK and MAUI workloads
         script: |
-          echo "Installing .NET $DOTNET_CHANNEL via dotnet-install.sh into $HOME/.dotnet"
-          mkdir -p $HOME/.dotnet
-          curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel $DOTNET_CHANNEL --install-dir $HOME/.dotnet
-          DOTNET_BIN="$HOME/.dotnet/dotnet"
-          $DOTNET_BIN --info
+          echo "Installing .NET $DOTNET_CHANNEL via dotnet-install.sh into $DOTNET_PATH"
+          mkdir -p $DOTNET_PATH
+          curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel $DOTNET_CHANNEL --install-dir $DOTNET_PATH
+          $DOTNET --info
           echo "Installing MAUI workloads"
-          $DOTNET_BIN workload install maui --skip-manifest-update
-      - name: Ensure Android SDK tools (license acceptance)
+          $DOTNET workload install maui --skip-manifest-update
+      - name: Accept Android SDK licenses
         script: |
-          # sdkmanager is usually available on macOS images; accept licenses
           yes | sdkmanager --licenses || true
-      - name: Restore
+      - name: Restore dependencies
         script: |
-          $HOME/.dotnet/dotnet restore
+          $DOTNET restore
       - name: Build Android Release
         script: |
-          $HOME/.dotnet/dotnet build ./HelloMaui.csproj -f net8.0-android -c Release -v minimal
-      - name: Publish APK
+          $DOTNET build ./HelloMaui.csproj -f net8.0-android -c Release -o ./publish
+      - name: List publish folder contents
         script: |
-          $HOME/.dotnet/dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o ./publish
+          ls -R ./publish
+      - name: Publish to GitHub Release
+        script: |
+          if [ -z "${CM_TAG}" ]; then
+            echo "Not a tag build, skipping GitHub release"
+            exit 0
+          fi
+          echo "${GITHUB_TOKEN}" > token.txt
+          gh auth login --with-token < token.txt
+          gh release create "${CM_TAG}" \
+            --title "Release ${CM_TAG}" \
+            --notes "Automated release from Codemagic" \
+            ./publish/*.apk
+
 artifacts:
   - publish/**/*.apk
+
+triggering:
+  events:
+    - tag
+  branch_patterns:
+    - pattern: "*"
+      include: true
+      source: true
