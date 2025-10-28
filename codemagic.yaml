@@ -1,7 +1,6 @@
 workflows:
   build-android:
     name: Build Android (.apk)
-    description: Build .NET MAUI Android app on macOS runner
     environment:
       vars:
         DOTNET_CHANNEL: "8.0"
