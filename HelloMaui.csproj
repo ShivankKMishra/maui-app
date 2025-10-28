@@ -7,6 +7,8 @@
     <UseMaui>true</UseMaui>
     <ApplicationTitle>HelloMaui</ApplicationTitle>
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+    <!-- Ensure the Android manifest used by the build is the one in Platforms/Android -->
+    <AndroidManifest>Platforms/Android/AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
   <ItemGroup>
     <!-- Explicit MAUI package reference required for .NET 8+ projects -->
