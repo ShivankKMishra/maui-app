@@ -5,15 +5,28 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UseMaui>true</UseMaui>
+
     <ApplicationTitle>HelloMaui</ApplicationTitle>
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
-    <!-- Ensure the Android manifest used by the build is the one in Platforms/Android -->
+
+    <!-- Use the Android manifest from Platforms/Android -->
     <AndroidManifest>Platforms/Android/AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
+
+  <!-- Keep your other libraries; remove the pinned MAUI package -->
   <ItemGroup>
-    <!-- Explicit MAUI package reference required for .NET 8+ projects -->
-    <PackageReference Include="Microsoft.Maui.Controls" Version="8.0.3" />
-    <!-- Use a resolved compatible version of CommunityToolkit.Mvvm -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.0" />
+  </ItemGroup>
+
+  <!-- Ensure XAML gets compiled so InitializeComponent() is generated -->
+  <ItemGroup>
+    <MauiXaml Update="MainPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
+
+    <!-- If you use your custom resource dictionary, compile it too -->
+    <MauiXaml Update="Resources/Styles/CustomDictionary.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </MauiXaml>
   </ItemGroup>
 </Project>

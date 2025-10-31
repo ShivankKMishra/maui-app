@@ -15,7 +15,7 @@
                VerticalOptions="Center"
                Margin="0,10" />
 
-        <Label Text="If you still see a blank screen, try rotating the device or restarting the app." 
+        <Label Text="If you still see a blank screen, try rotating the device or restarting the app."
                FontSize="14"
                TextColor="Gray"
                HorizontalOptions="Center"
@@ -23,3 +23,4 @@
     </VerticalStackLayout>
 
 </ContentPage>
+``
