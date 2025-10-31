@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   release:
-    types: [created]
+    types: [ created ]
   workflow_dispatch:
 
 jobs:
@@ -22,42 +22,44 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # JDK 17 for .NET MAUI 8 Android toolchain
+      # JDK 17 is required for MAUI Android on .NET 8
       - name: Setup Java 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # Install Android SDK w/ cmdline-tools (latest) and add to PATH
+      # Install Android SDK with cmdline-tools (latest) and desired packages
       - name: Setup Android SDK (cmdline-tools latest)
         uses: android-actions/setup-android@v3
         with:
-          # Install what we need up-front; tweak versions to your app’s needs
-          packages: |
-            platform-tools
-            platforms;android-34
-            build-tools;34.0.0
+          packages: "platform-tools platforms;android-34 build-tools;34.0.0"
 
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
+      # Install only the Android workload (lighter than full 'maui')
       - name: Install MAUI Android workload
         run: dotnet workload install maui-android
+
+      - name: Show dotnet info
+        run: dotnet --info
 
       - name: Restore dependencies
         run: dotnet restore
 
-      # Build & publish an APK (signed if keystore secrets are present)
+      # Build & publish an APK (sign if keystore secrets are present)
       - name: Build and publish APK
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
         run: |
           PUBLISH_DIR=./publish
           mkdir -p "$PUBLISH_DIR"
+
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "Keystore secrets detected — producing a signed release APK"
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$KEYSTORE_PATH"
+
             dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR" \
               -p:AndroidKeyStore=true \
               -p:AndroidSigningKeyStore="$KEYSTORE_PATH" \
@@ -68,9 +70,6 @@ jobs:
             echo "No keystore provided — producing an unsigned release APK"
             dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR"
           fi
-
-      - name: List publish artifacts
-        run: ls -R ./publish || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
