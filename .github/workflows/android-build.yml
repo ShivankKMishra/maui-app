@@ -23,11 +23,19 @@ jobs:
           mkdir -p $HOME/.dotnet
           curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel $DOTNET_CHANNEL --install-dir $HOME/.dotnet
           echo "$HOME/.dotnet" >> $GITHUB_PATH
+          echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
           $HOME/.dotnet/dotnet --info
 
       - name: Install MAUI workloads
         run: |
-          $HOME/.dotnet/dotnet workload install maui --no-restore --skip-manifest-update
+          $HOME/.dotnet/dotnet workload install maui
+
+      - name: Set up Java and Android SDK
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$HOME/Library/Android/sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/Library/Android/sdk" >> $GITHUB_ENV
+          echo "PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools" >> $GITHUB_ENV
 
       - name: Accept Android SDK licenses
         run: |
@@ -48,7 +56,12 @@ jobs:
             echo "Keystore secrets detected — producing a signed release APK"
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$KEYSTORE_PATH"
             ls -l "$KEYSTORE_PATH"
-            $HOME/.dotnet/dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o $PUBLISH_DIR -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$KEYSTORE_PATH" -p:AndroidSigningStorePass="${{ secrets.KEYSTORE_PASSWORD }}" -p:AndroidSigningKeyAlias="${{ secrets.KEY_ALIAS }}" -p:AndroidSigningKeyPass="${{ secrets.KEY_PASSWORD }}"
+            $HOME/.dotnet/dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o $PUBLISH_DIR \
+              -p:AndroidKeyStore=true \
+              -p:AndroidSigningKeyStore="$KEYSTORE_PATH" \
+              -p:AndroidSigningStorePass="${{ secrets.KEYSTORE_PASSWORD }}" \
+              -p:AndroidSigningKeyAlias="${{ secrets.KEY_ALIAS }}" \
+              -p:AndroidSigningKeyPass="${{ secrets.KEY_PASSWORD }}"
           else
             echo "No keystore provided — producing an unsigned release APK"
             $HOME/.dotnet/dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o $PUBLISH_DIR
