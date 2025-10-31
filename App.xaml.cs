@@ -7,8 +7,6 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
-
-        // On .NET 8, this is valid and recommended in non‑Shell apps
-        MainPage = new MainPage();
+        MainPage = new MainPage(); // ok on .NET 8
     }
 }

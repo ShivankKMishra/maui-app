@@ -9,54 +9,56 @@ on:
 
 jobs:
   build-android:
-    runs-on: macos-latest
+    runs-on: macos-14
     timeout-minutes: 120
-    env:
-      DOTNET_CHANNEL: '8.0'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install .NET SDK
-        run: |
-          mkdir -p $HOME/.dotnet
-          curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel $DOTNET_CHANNEL --install-dir $HOME/.dotnet
-          echo "$HOME/.dotnet" >> $GITHUB_PATH
-          echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
-          $HOME/.dotnet/dotnet --info
+      # Install .NET 8 SDK
+      - name: Setup .NET SDK 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-      - name: Install MAUI workloads
-        run: |
-          $HOME/.dotnet/dotnet workload install maui
+      # JDK 17 for .NET MAUI 8 Android toolchain
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Set up Java and Android SDK
-        run: |
-          echo "JAVA_HOME=$JAVA_HOME" >> $GITHUB_ENV
-          echo "ANDROID_HOME=$HOME/Library/Android/sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/Library/Android/sdk" >> $GITHUB_ENV
-          echo "PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools" >> $GITHUB_ENV
+      # Install Android SDK w/ cmdline-tools (latest) and add to PATH
+      - name: Setup Android SDK (cmdline-tools latest)
+        uses: android-actions/setup-android@v3
+        with:
+          # Install what we need up-front; tweak versions to your app’s needs
+          packages: |
+            platform-tools
+            platforms;android-34
+            build-tools;34.0.0
 
       - name: Accept Android SDK licenses
-        run: |
-          yes | sdkmanager --licenses || true
+        run: yes | sdkmanager --licenses
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android
 
       - name: Restore dependencies
-        run: |
-          $HOME/.dotnet/dotnet restore
+        run: dotnet restore
 
+      # Build & publish an APK (signed if keystore secrets are present)
       - name: Build and publish APK
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
         run: |
           PUBLISH_DIR=./publish
-          mkdir -p $PUBLISH_DIR
-          echo "Building project..."
+          mkdir -p "$PUBLISH_DIR"
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "Keystore secrets detected — producing a signed release APK"
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$KEYSTORE_PATH"
-            ls -l "$KEYSTORE_PATH"
-            $HOME/.dotnet/dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o $PUBLISH_DIR \
+            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR" \
               -p:AndroidKeyStore=true \
               -p:AndroidSigningKeyStore="$KEYSTORE_PATH" \
               -p:AndroidSigningStorePass="${{ secrets.KEYSTORE_PASSWORD }}" \
@@ -64,12 +66,11 @@ jobs:
               -p:AndroidSigningKeyPass="${{ secrets.KEY_PASSWORD }}"
           else
             echo "No keystore provided — producing an unsigned release APK"
-            $HOME/.dotnet/dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o $PUBLISH_DIR
+            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR"
           fi
 
       - name: List publish artifacts
-        run: |
-          ls -R ./publish || true
+        run: ls -R ./publish || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

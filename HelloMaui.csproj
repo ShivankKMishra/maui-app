@@ -8,24 +8,18 @@
 
     <ApplicationTitle>HelloMaui</ApplicationTitle>
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
-
-    <!-- Use the Android manifest from Platforms/Android -->
     <AndroidManifest>Platforms/Android/AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
 
-  <!-- Keep your other libraries; remove the pinned MAUI package -->
   <ItemGroup>
+    <!-- Align this version to the MAUI SDK pack version shown in your build logs (8.0.100) -->
+    <PackageReference Include="Microsoft.Maui.Controls" Version="8.0.100" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.0" />
   </ItemGroup>
 
-  <!-- Ensure XAML gets compiled so InitializeComponent() is generated -->
+  <!-- Ensure XAML is compiled so InitializeComponent() is generated -->
   <ItemGroup>
     <MauiXaml Update="MainPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </MauiXaml>
-
-    <!-- If you use your custom resource dictionary, compile it too -->
-    <MauiXaml Update="Resources/Styles/CustomDictionary.xaml">
       <Generator>MSBuild:Compile</Generator>
     </MauiXaml>
   </ItemGroup>
