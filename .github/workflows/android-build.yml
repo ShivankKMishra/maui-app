@@ -1,0 +1,65 @@
+name: Build Android (GitHub Actions)
+
+on:
+  push:
+    branches: [ main ]
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      DOTNET_CHANNEL: '8.0'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install .NET SDK
+        run: |
+          mkdir -p $HOME/.dotnet
+          curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel $DOTNET_CHANNEL --install-dir $HOME/.dotnet
+          echo "$HOME/.dotnet" >> $GITHUB_PATH
+          $HOME/.dotnet/dotnet --info
+
+      - name: Install MAUI workloads
+        run: |
+          $HOME/.dotnet/dotnet workload install maui --no-restore --skip-manifest-update
+
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: Restore dependencies
+        run: |
+          $HOME/.dotnet/dotnet restore
+
+      - name: Build and publish APK
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+        run: |
+          PUBLISH_DIR=./publish
+          mkdir -p $PUBLISH_DIR
+          echo "Building project..."
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Keystore secrets detected — producing a signed release APK"
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$KEYSTORE_PATH"
+            ls -l "$KEYSTORE_PATH"
+            $HOME/.dotnet/dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o $PUBLISH_DIR -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$KEYSTORE_PATH" -p:AndroidSigningStorePass="${{ secrets.KEYSTORE_PASSWORD }}" -p:AndroidSigningKeyAlias="${{ secrets.KEY_ALIAS }}" -p:AndroidSigningKeyPass="${{ secrets.KEY_PASSWORD }}"
+          else
+            echo "No keystore provided — producing an unsigned release APK"
+            $HOME/.dotnet/dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o $PUBLISH_DIR
+          fi
+
+      - name: List publish artifacts
+        run: |
+          ls -R ./publish || true
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: publish/**/*.apk
