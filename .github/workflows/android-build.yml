@@ -16,20 +16,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Install .NET 8 SDK
       - name: Setup .NET SDK 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # JDK 17 is required for MAUI Android on .NET 8
       - name: Setup Java 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # Install Android SDK with cmdline-tools (latest) and desired packages
       - name: Setup Android SDK (cmdline-tools latest)
         uses: android-actions/setup-android@v3
         with:
@@ -38,7 +35,6 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses
 
-      # Install only the Android workload (lighter than full 'maui')
       - name: Install MAUI Android workload
         run: dotnet workload install maui-android
 
@@ -48,7 +44,6 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      # Build & publish an APK (sign if keystore secrets are present)
       - name: Build and publish APK
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
@@ -69,7 +64,6 @@ jobs:
           else
             echo "No keystore provided — producing an unsigned release APK"
             dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR"
-          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -78,6 +72,6 @@ jobs:
           path: publish/**/*.apk
 
       - name: List publish artifacts
-  run: |
-    echo "APK(s) found:"
-    find publish -type f -name "*.apk" -print   
+        run: |
+          echo "APK(s) found:"
+          find publish -type f -name "*.apk" -print
