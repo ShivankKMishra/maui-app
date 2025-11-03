@@ -6,18 +6,19 @@
              BackgroundColor="White"
              Padding="20,40,20,20">
 
-    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center">
+    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" BackgroundColor="LightGray">
         <Label x:Name="HelloLabel"
                Text="Hello World"
                FontSize="32"
                TextColor="Black"
+               BackgroundColor="LightBlue"
                HorizontalOptions="Center"
                VerticalOptions="Center"
                Margin="0,10" />
 
         <Label Text="If you still see a blank screen, try rotating the device or restarting the app."
                FontSize="14"
-               TextColor="Gray"
+               TextColor="Black"
                HorizontalOptions="Center"
                Margin="0,8" />
     </VerticalStackLayout>
