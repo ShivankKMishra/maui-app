@@ -1,56 +1,74 @@
-workflows:
+name: Build Android (.apk)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
   build-android:
-    name: Build Android (.apk)
-    max_build_duration: 60
-    instance_type: mac_mini_m2
-    environment:
-      vars:
-        DOTNET_CHANNEL: "8.0"
-        DOTNET_PATH: "$HOME/.dotnet"
-        DOTNET: "$HOME/.dotnet/dotnet"
-        KEYSTORE_PATH: "$HOME/release.keystore"
-    scripts:
+    runs-on: macos-14
+    env:
+      DOTNET_CHANNEL: "8.0"
+      DOTNET_PATH: "${HOME}/.dotnet"
+      DOTNET: "${HOME}/.dotnet/dotnet"
+      KEYSTORE_PATH: "${HOME}/release.keystore"
+      ANDROID_SDK_ROOT: "/Users/runner/Library/Android/sdk" # default on macOS runners
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install .NET SDK and MAUI workloads
-        script: |
-          echo "Installing .NET $DOTNET_CHANNEL via dotnet-install.sh into $DOTNET_PATH"
-          mkdir -p $DOTNET_PATH
-          curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel $DOTNET_CHANNEL --install-dir $DOTNET_PATH
-          $DOTNET --info
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Installing .NET ${DOTNET_CHANNEL} into ${DOTNET_PATH}"
+          mkdir -p "${DOTNET_PATH}"
+          curl -sSL https://dot.net/v1/dotnet-install.sh \
+            | bash /dev/stdin --channel "${DOTNET_CHANNEL}" --install-dir "${DOTNET_PATH}"
+          export PATH="${DOTNET_PATH}:${PATH}"
+          "${DOTNET}" --info
           echo "Installing MAUI workloads"
-          $DOTNET workload install maui --skip-manifest-update
+          "${DOTNET}" workload install maui --skip-manifest-update
+
       - name: Accept Android SDK licenses
-        script: |
+        shell: bash
+        run: |
           yes | sdkmanager --licenses || true
+
       - name: Restore dependencies
-        script: |
-          $DOTNET restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          "${DOTNET}" restore
+
       - name: Build Android Release
-        script: |
-          PUBLISH_DIR=./publish
-          mkdir -p "$PUBLISH_DIR"
-          if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUBLISH_DIR="./publish"
+          mkdir -p "${PUBLISH_DIR}"
+
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
             echo "Keystore secrets detected — producing a signed release APK"
-            echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "$KEYSTORE_PATH"
-            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR" -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$KEYSTORE_PATH" -p:AndroidSigningStorePass="${ANDROID_KEYSTORE_PASSWORD}" -p:AndroidSigningKeyAlias="${ANDROID_KEY_ALIAS}" -p:AndroidSigningKeyPass="${ANDROID_KEY_PASSWORD}"
+            echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "${KEYSTORE_PATH}"
+            "${DOTNET}" publish ./HelloMaui.csproj -f net8.0-android -c Release -o "${PUBLISH_DIR}" \
+              -p:AndroidKeyStore=true \
+              -p:AndroidSigningKeyStore="${KEYSTORE_PATH}" \
+              -p:AndroidSigningStorePass="${ANDROID_KEYSTORE_PASSWORD}" \
+              -p:AndroidSigningKeyAlias="${ANDROID_KEY_ALIAS}" \
+              -p:AndroidSigningKeyPass="${ANDROID_KEY_PASSWORD}"
           else
             echo "No keystore provided — producing an unsigned release APK"
-            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR"
+            "${DOTNET}" publish ./HelloMaui.csproj -f net8.0-android -c Release -o "${PUBLISH_DIR}"
           fi
+
       - name: List publish folder contents
-        script: |
-          ls -R ./publish
-      - name: Upload and provide download link
-        script: |
-          APK_PATH=$(find ./publish -name "*.apk" | head -n 1)
-          if [ -f "$APK_PATH" ]; then
-            echo "Uploading APK to transfer.sh"
-            DOWNLOAD_URL=$(curl --upload-file "$APK_PATH" https://transfer.sh)
-            echo "Download link: $DOWNLOAD_URL"
-          else
-            echo "APK not found."
-          fi
-      - name: Delete APK
-        script: |
-          rm -rf ./publish
-artifacts:
-  - publish/**/*.apk
+        shell: bash
+        run: |
+          ls -R ./publish || true
+
+      - name: Upload artifact (APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: publish/**/*.apk
