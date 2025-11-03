@@ -1,6 +1,6 @@
 workflows:
   build-android:
-    name: Build Android (.apk) and Publish to GitHub
+    name: Build Android (.apk)
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
@@ -39,43 +39,18 @@ workflows:
       - name: List publish folder contents
         script: |
           ls -R ./publish
-      - name: Publish to GitHub Release
+      - name: Upload and provide download link
         script: |
-          echo "Debug: CM_TAG='${CM_TAG}' CM_BRANCH='${CM_BRANCH}' CM_BUILD_TRIGGER='${CM_BUILD_TRIGGER}'"
-
-          # If CM_TAG is not set, try to detect a tag that points at HEAD (fallback)
-          if [ -z "${CM_TAG}" ]; then
-            echo "CM_TAG is empty, attempting to detect tag via git"
-            git fetch --tags || true
-            TAG=$(git tag --points-at HEAD 2>/dev/null || true)
-            if [ -z "$TAG" ]; then
-              TAG=$(git describe --tags --exact-match 2>/dev/null || true)
-            fi
-            if [ -n "$TAG" ]; then
-              export CM_TAG="$TAG"
-              echo "Detected tag: $CM_TAG"
-            else
-              echo "Not a tag build and no tag detected. Skipping GitHub release"
-              exit 0
-            fi
+          APK_PATH=$(find ./publish -name "*.apk" | head -n 1)
+          if [ -f "$APK_PATH" ]; then
+            echo "Uploading APK to transfer.sh"
+            DOWNLOAD_URL=$(curl --upload-file "$APK_PATH" https://transfer.sh)
+            echo "Download link: $DOWNLOAD_URL"
+          else
+            echo "APK not found."
           fi
-
-          if [ -z "${GITHUB_TOKEN}" ]; then
-            echo "GITHUB_TOKEN not set in environment. Cannot create release. Skipping."
-            exit 0
-          fi
-
-          echo "${GITHUB_TOKEN}" > token.txt
-          gh auth login --with-token < token.txt
-          gh release create "${CM_TAG}" --title "Release ${CM_TAG}" --notes "Automated release from Codemagic" ./publish/*.apk
-
+      - name: Delete APK
+        script: |
+          rm -rf ./publish
 artifacts:
   - publish/**/*.apk
-
-triggering:
-  events:
-    - tag
-  branch_patterns:
-    - pattern: "*"
-      include: true
-      source: true
