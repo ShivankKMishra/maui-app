@@ -57,10 +57,7 @@ workflows:
 
           echo "${GITHUB_TOKEN}" > token.txt
           gh auth login --with-token < token.txt
-          gh release create "${CM_TAG}" \
-            --title "Release ${CM_TAG}" \
-            --notes "Automated release from Codemagic" \
-            ./publish/*.apk
+          gh release create "${CM_TAG}" --title "Release ${CM_TAG}" --notes "Automated release from Codemagic" ./publish/*.apk
 
 artifacts:
   - publish/**/*.apk
