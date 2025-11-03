@@ -31,10 +31,15 @@ workflows:
           if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
             echo "Keystore secrets detected — producing a signed release APK"
             echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "$KEYSTORE_PATH"
-            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR" -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$KEYSTORE_PATH" -p:AndroidSigningStorePass="${ANDROID_KEYSTORE_PASSWORD}" -p:AndroidSigningKeyAlias="${ANDROID_KEY_ALIAS}" -p:AndroidSigningKeyPass="${ANDROID_KEY_PASSWORD}"
+            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR" \
+              -p:AndroidKeyStore=true \
+              -p:AndroidSigningKeyStore="$KEYSTORE_PATH" \
+              -p:AndroidSigningStorePass="${ANDROID_KEYSTORE_PASSWORD}" \
+              -p:AndroidSigningKeyAlias="${ANDROID_KEY_ALIAS}" \
+              -p:AndroidSigningKeyPass="${ANDROID_KEY_PASSWORD}"
           else
             echo "No keystore provided — producing an unsigned release APK"
-            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR"
+            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR1"
           fi
       - name: List publish folder contents
         script: |
