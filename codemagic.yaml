@@ -1,75 +1,56 @@
-- name: Build and publish APK (with diagnostics)
-  shell: bash
-  env:
-    # map secrets to env so we don't embed ${{ }} inside bash
-    KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-    KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-    KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-    KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-    KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
-  run: |
-    set -Eeuo pipefail
-
-    # Write the step to a file verbatim (no variable expansion)
-    cat > build_android.sh <<'SCRIPT'
-    set -Eeuo pipefail
-
-    # Helpful error context on any failure
-    trap 'echo "::error::Build script failed near line ${LINENO}. See numbered script below:"; nl -ba "$0" | sed -n "$((LINENO-5)),$((LINENO+5))p"' ERR
-
-    PUBLISH_DIR="./publish"
-    mkdir -p "$PUBLISH_DIR"
-
-    # --- Preflight checks with explicit errors ---
-    command -v dotnet >/dev/null || { echo "::error::dotnet not found on PATH"; exit 2; }
-    command -v sdkmanager >/dev/null || { echo "::error::sdkmanager not found"; exit 2; }
-    dotnet --version | grep -q '^8\.' || { echo "::error::.NET SDK 8.x required; current:"; dotnet --info; exit 2; }
-
-    if [ ! -f "./HelloMaui.csproj" ]; then
-      echo "::error::HelloMaui.csproj not found in repo root"; exit 2;
-    fi
-    if ! grep -q 'net8.0-android' ./HelloMaui.csproj; then
-      echo "::error::TargetFramework 'net8.0-android' missing from HelloMaui.csproj"; exit 2;
-    fi
-
-    # --- Build (signed if secrets present) ---
-    if [ -n "${KEYSTORE_BASE64:-}" ]; then
-      echo "Keystore secrets detected — producing a signed release APK"
-
-      # Validate base64 to avoid silent decode errors
-      if ! printf '%s' "${KEYSTORE_BASE64}" | base64 -d >/dev/null 2>&1; then
-        echo "::error::KEYSTORE_BASE64 is not valid base64"; exit 2;
-      fi
-
-      # IMPORTANT: real '>' redirection; avoid HTML '&gt;'
-      printf '%s' "${KEYSTORE_BASE64}" | base64 -d > "${KEYSTORE_PATH}"
-
-      dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR" \
-        -p:AndroidKeyStore=true \
-        -p:AndroidSigningKeyStore="${KEYSTORE_PATH}" \
-        -p:AndroidSigningStorePass="${KEYSTORE_PASSWORD}" \
-        -p:AndroidSigningKeyAlias="${KEY_ALIAS}" \
-        -p:AndroidSigningKeyPass="${KEY_PASSWORD}"
-    else
-      echo "No keystore provided — producing an unsigned release APK"
-      dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR"
-    fi
-
-    # --- Post-build verification with clear error if APK missing ---
-    APK_COUNT=$(find "$PUBLISH_DIR" -name '*.apk' | wc -l | tr -d ' ')
-    if [ "$APK_COUNT" -eq 0 ]; then
-      echo "::error::Publish finished but no .apk was generated.
-      Likely causes:
-        • MAUI Android workload not installed (try: dotnet workload install maui-android)
-        • Incorrect TargetFramework (need net8.0-android)
-        • AOT/packaging failure (try: -p:RunAOTCompilation=false)
-        • Build failed earlier — see dotnet output above"
-      exit 3
-    fi
-    SCRIPT
-
-    echo "== Bash syntax check =="
-    bash -n build_android.sh || { echo "::error::Syntax error in generated build script"; nl -ba build_android.sh; exit 1; }
-
-    echo "== Execute with debug tracing =="
-    bash -x build_android.sh
+workflows:
+  build-android:
+    name: Build Android (.apk)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      vars:
+        DOTNET_CHANNEL: "8.0"
+        DOTNET_PATH: "$HOME/.dotnet"
+        DOTNET: "$HOME/.dotnet/dotnet"
+        KEYSTORE_PATH: "$HOME/release.keystore"
+    scripts:
+      - name: Install .NET SDK and MAUI workloads
+        script: |
+          echo "Installing .NET $DOTNET_CHANNEL via dotnet-install.sh into $DOTNET_PATH"
+          mkdir -p $DOTNET_PATH
+          curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel $DOTNET_CHANNEL --install-dir $DOTNET_PATH
+          $DOTNET --info
+          echo "Installing MAUI workloads"
+          $DOTNET workload install maui --skip-manifest-update
+      - name: Accept Android SDK licenses
+        script: |
+          yes | sdkmanager --licenses || true
+      - name: Restore dependencies
+        script: |
+          $DOTNET restore
+      - name: Build Android Release
+        script: |
+          PUBLISH_DIR=./publish
+          mkdir -p "$PUBLISH_DIR"
+          if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
+            echo "Keystore secrets detected — producing a signed release APK"
+            echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "$KEYSTORE_PATH"
+            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR" -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$KEYSTORE_PATH" -p:AndroidSigningStorePass="${ANDROID_KEYSTORE_PASSWORD}" -p:AndroidSigningKeyAlias="${ANDROID_KEY_ALIAS}" -p:AndroidSigningKeyPass="${ANDROID_KEY_PASSWORD}"
+          else
+            echo "No keystore provided — producing an unsigned release APK"
+            dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR"
+          fi
+      - name: List publish folder contents
+        script: |
+          ls -R ./publish
+      - name: Upload and provide download link
+        script: |
+          APK_PATH=$(find ./publish -name "*.apk" | head -n 1)
+          if [ -f "$APK_PATH" ]; then
+            echo "Uploading APK to transfer.sh"
+            DOWNLOAD_URL=$(curl --upload-file "$APK_PATH" https://transfer.sh)
+            echo "Download link: $DOWNLOAD_URL"
+          else
+            echo "APK not found."
+          fi
+      - name: Delete APK
+        script: |
+          rm -rf ./publish
+artifacts:
+  - publish/**/*.apk
