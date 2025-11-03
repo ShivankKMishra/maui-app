@@ -6,6 +6,18 @@ public partial class MainPage : ContentPage
 {
     public MainPage()
     {
-        InitializeComponent();
+        try
+        {
+            InitializeComponent();
+        }
+        catch (Exception ex)
+        {
+            Content = new Label
+            {
+                Text = $"Error initializing MainPage: {ex}",
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalOptions = LayoutOptions.Center
+            };
+        }
     }
 }
