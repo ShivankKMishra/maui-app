@@ -39,18 +39,3 @@ workflows:
       - name: List publish folder contents
         script: |
           ls -R ./publish
-      - name: Upload and provide download link
-        script: |
-          APK_PATH=$(find ./publish -name "*.apk" | head -n 1)
-          if [ -f "$APK_PATH" ]; then
-            echo "Uploading APK to transfer.sh"
-            DOWNLOAD_URL=$(curl --upload-file "$APK_PATH" https://transfer.sh)
-            echo "Download link: $DOWNLOAD_URL"
-          else
-            echo "APK not found."
-          fi
-      - name: Delete APK
-        script: |
-          rm -rf ./publish
-artifacts:
-  - publish/**/*.apk
