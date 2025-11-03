@@ -12,6 +12,13 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 120
 
+    # Map secrets to env so we don't embed ${{ }} inside bash
+    env:
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,45 +40,57 @@ jobs:
           packages: "platform-tools platforms;android-34 build-tools;34.0.0"
 
       - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses || true
 
       - name: Install MAUI Android workload
-        run: dotnet workload install maui-android
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet workload install maui-android
 
       - name: Show dotnet info
+        shell: bash
         run: dotnet --info
 
       - name: Restore dependencies
+        shell: bash
         run: dotnet restore
 
       - name: Build and publish APK
+        shell: bash
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
         run: |
+          set -euo pipefail
           PUBLISH_DIR=./publish
           mkdir -p "$PUBLISH_DIR"
 
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
             echo "Keystore secrets detected — producing a signed release APK"
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$KEYSTORE_PATH"
+            # IMPORTANT: use real '>' (no &gt;), and printf to avoid newline
+            printf '%s' "${KEYSTORE_BASE64}" | base64 -d > "${KEYSTORE_PATH}"
 
             dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR" \
               -p:AndroidKeyStore=true \
               -p:AndroidSigningKeyStore="$KEYSTORE_PATH" \
-              -p:AndroidSigningStorePass="${{ secrets.KEYSTORE_PASSWORD }}" \
-              -p:AndroidSigningKeyAlias="${{ secrets.KEY_ALIAS }}" \
-              -p:AndroidSigningKeyPass="${{ secrets.KEY_PASSWORD }}"
+              -p:AndroidSigningStorePass="${KEYSTORE_PASSWORD}" \
+              -p:AndroidSigningKeyAlias="${KEY_ALIAS}" \
+              -p:AndroidSigningKeyPass="${KEY_PASSWORD}"
           else
             echo "No keystore provided — producing an unsigned release APK"
             dotnet publish ./HelloMaui.csproj -f net8.0-android -c Release -o "$PUBLISH_DIR"
+          fi
+
+      - name: List publish artifacts
+        shell: bash
+        run: |
+          echo "APK(s) found:"
+          find publish -type f -name "*.apk" -print || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
+          name: android-apk-${{ github.run_number }}
           path: publish/**/*.apk
-
-      - name: List publish artifacts
-        run: |
-          echo "APK(s) found:"
-          find publish -type f -name "*.apk" -print
